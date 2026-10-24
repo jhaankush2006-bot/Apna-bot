@@ -35,6 +35,34 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+
+const sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+async function generateWithRetry(request, maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await ai.models.generateContent(request);
+    } catch (error) {
+      const message = String(error.message || error);
+      const isTemporary =
+        /503|UNAVAILABLE|high demand|overloaded|500|502|504/i.test(message);
+
+      if (!isTemporary || attempt === maxAttempts) {
+        throw error;
+      }
+
+      const delay = 1000 * (2 ** (attempt - 1));
+      console.log(
+        `Gemini temporary error. Retry ${attempt + 1}/${maxAttempts} in ${delay}ms`
+      );
+
+      await sleep(delay);
+    }
+  }
+}
+
+
 app.post("/api/chat", async (req, res) => {
   try {
     if (!ai) {
